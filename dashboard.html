@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HydroHealth | Conversion Dashboard Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="dashboard-body">
+  <header class="dashboard-header">
+    <div>
+      <p class="eyebrow">HydroHealth Conversion System Prototype v1</p>
+      <h1 class="serif">Lead Journey Dashboard</h1>
+    </div>
+    <div class="dashboard-actions">
+      <a class="btn btn-secondary" href="index.html">Back to Landing Page</a>
+      <button class="btn btn-ghost" id="seed-demo" type="button">Add Demo Leads</button>
+      <button class="btn btn-primary" id="export-csv" type="button">Export CSV</button>
+      <button class="btn btn-secondary" id="clear-data" type="button">Clear Demo Data</button>
+    </div>
+  </header>
+
+  <main class="dashboard-main">
+    <section class="metric-grid">
+      <article class="metric-card"><small>Page Views</small><strong id="m-pageviews">0</strong></article>
+      <article class="metric-card"><small>LINE Clicks</small><strong id="m-line">0</strong></article>
+      <article class="metric-card"><small>Form Submits</small><strong id="m-leads">0</strong></article>
+      <article class="metric-card"><small>Conversion Rate</small><strong id="m-cvr">0%</strong></article>
+    </section>
+
+    <section class="dashboard-grid">
+      <article class="panel-card">
+        <h2>Funnel Summary</h2>
+        <div id="funnel-bars"></div>
+      </article>
+      <article class="panel-card">
+        <h2>Source Breakdown</h2>
+        <div id="source-bars"></div>
+      </article>
+    </section>
+
+    <section class="dashboard-grid">
+      <article class="panel-card">
+        <h2>Lead Status</h2>
+        <div id="status-bars"></div>
+      </article>
+      <article class="panel-card">
+        <h2>Recent Event Log</h2>
+        <div class="event-log" id="event-log"></div>
+      </article>
+    </section>
+
+    <section class="lead-table-wrap">
+      <h2>Lead Inbox</h2>
+      <p class="micro-note">Prototype only: data is stored in this browser's localStorage. For live use, connect this flow to Google Sheets, Airtable, HubSpot, or another CRM.</p>
+      <div class="table-scroll">
+        <table class="lead-table">
+          <thead>
+            <tr>
+              <th>Created</th><th>Name</th><th>Phone</th><th>LINE ID</th><th>Interest</th><th>Preferred</th><th>Source</th><th>Campaign</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="lead-table-body"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="empty-state">ยังไม่มี lead ในระบบต้นแบบ ลองกลับไปกรอกฟอร์มใน Landing Page หรือกด Add Demo Leads</div>
+    </section>
+  </main>
+
+  <script>
+    const STORE_EVENTS = 'hydrohealth_events_v1';
+    const STORE_LEADS = 'hydrohealth_leads_v1';
+    const statuses = ['New Lead','Contacted','No Response','Qualified','Consult Booked','Consult Completed','Program Recommended','Converted','Not Qualified'];
+    const get = key => JSON.parse(localStorage.getItem(key) || '[]');
+    const set = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+    const byId = id => document.getElementById(id);
+    const countEvents = name => get(STORE_EVENTS).filter(e => e.event === name).length;
+    const groupBy = (items, key, fallback='not_set') => items.reduce((acc,item)=>{ const k=item[key] || fallback; acc[k]=(acc[k]||0)+1; return acc; },{});
+    const maxVal = obj => Math.max(1, ...Object.values(obj));
+    function pct(n,d){ return d ? `${Math.round((n/d)*100)}%` : '0%'; }
+    function barRows(obj){
+      const max = maxVal(obj);
+      const entries = Object.entries(obj).sort((a,b)=>b[1]-a[1]);
+      if(!entries.length) return '<p class="micro-note">No data yet.</p>';
+      return entries.map(([label,value])=>`<div class="bar-row"><span>${label}</span><div class="bar"><span style="width:${Math.max(3,(value/max)*100)}%"></span></div><strong>${value}</strong></div>`).join('');
+    }
+    function render(){
+      const events = get(STORE_EVENTS);
+      const leads = get(STORE_LEADS);
+      const pageviews = countEvents('page_view');
+      const line = countEvents('line_cta_click') + countEvents('line_mock_open');
+      byId('m-pageviews').textContent = pageviews;
+      byId('m-line').textContent = line;
+      byId('m-leads').textContent = leads.length;
+      byId('m-cvr').textContent = pct(leads.length, pageviews || 1);
+
+      byId('funnel-bars').innerHTML = barRows({
+        'Page View': pageviews,
+        'CTA / LINE Click': line + countEvents('consultation_cta_click'),
+        'Form Start': countEvents('form_start'),
+        'Form Submit': leads.length,
+        'Program Selected': countEvents('program_pathway_select')
+      });
+      byId('source-bars').innerHTML = barRows(groupBy([...events,...leads], 'utm_source'));
+      byId('status-bars').innerHTML = barRows(groupBy(leads, 'status'));
+      byId('event-log').innerHTML = events.slice(-40).reverse().map(e=>`<div class="event-item"><span>${new Date(e.timestamp).toLocaleString()}</span><div><span class="pill">${e.event}</span> <small>${e.utm_source || ''} / ${e.utm_campaign || ''}</small></div></div>`).join('') || '<p class="micro-note">No events yet.</p>';
+
+      const tbody = byId('lead-table-body');
+      tbody.innerHTML = leads.map(lead=>`<tr data-id="${lead.id}">
+        <td>${new Date(lead.created_at).toLocaleString()}</td>
+        <td>${escapeHtml(lead.name)}</td>
+        <td>${escapeHtml(lead.phone)}</td>
+        <td>${escapeHtml(lead.line_id)}</td>
+        <td>${escapeHtml(lead.interest)}</td>
+        <td>${escapeHtml(lead.preferred_channel || '')}</td>
+        <td>${escapeHtml(lead.utm_source || '')}</td>
+        <td>${escapeHtml(lead.utm_campaign || '')}</td>
+        <td><select class="status-select">${statuses.map(s=>`<option ${s===lead.status?'selected':''}>${s}</option>`).join('')}</select></td>
+      </tr>`).join('');
+      byId('empty-state').style.display = leads.length ? 'none' : 'block';
+      document.querySelectorAll('.status-select').forEach(select=>select.addEventListener('change', e=>{
+        const id = e.target.closest('tr').dataset.id;
+        const updated = get(STORE_LEADS).map(l=> l.id===id ? {...l, status:e.target.value, updated_at:new Date().toISOString()} : l);
+        set(STORE_LEADS, updated); render();
+      }));
+    }
+    function escapeHtml(value=''){ return String(value).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+    function csvEscape(value=''){ return '"' + String(value).replaceAll('"','""') + '"'; }
+    byId('export-csv').addEventListener('click',()=>{
+      const leads = get(STORE_LEADS);
+      const headers = ['created_at','name','phone','line_id','preferred_channel','interest','preferred_time','status','utm_source','utm_medium','utm_campaign','utm_content','utm_term','pdpa_consent','consent_timestamp'];
+      const csv = [headers.join(',')].concat(leads.map(l=>headers.map(h=>csvEscape(l[h] || '')).join(','))).join('\n');
+      const blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='hydrohealth-leads-prototype.csv'; a.click(); URL.revokeObjectURL(url);
+    });
+    byId('clear-data').addEventListener('click',()=>{ if(confirm('Clear prototype events and leads in this browser?')){ localStorage.removeItem(STORE_EVENTS); localStorage.removeItem(STORE_LEADS); render(); } });
+    byId('seed-demo').addEventListener('click',()=>{
+      const now = Date.now();
+      const demoLeads = [
+        {name:'Demo Lead A',phone:'081-000-0001',line_id:'demo_a',preferred_channel:'LINE',interest:'Initial Metabolic Health Assessment',status:'New Lead',utm_source:'google',utm_medium:'cpc',utm_campaign:'hydrohealth_metabolic_consultation'},
+        {name:'Demo Lead B',phone:'082-000-0002',line_id:'demo_b',preferred_channel:'Phone call',interest:'Metabolic Balance',status:'Contacted',utm_source:'facebook',utm_medium:'paid_social',utm_campaign:'hydrohealth_metabolic_consultation'},
+        {name:'Demo Lead C',phone:'083-000-0003',line_id:'demo_c',preferred_channel:'LINE',interest:'Starter Reset',status:'Consult Booked',utm_source:'line',utm_medium:'oa',utm_campaign:'hydrohealth_metabolic_consultation'}
+      ].map((l,i)=>({id:`demo_${now}_${i}`,created_at:new Date(now-i*3600000).toISOString(),session_id:`demo_session_${i}`,pdpa_consent:true,consent_timestamp:new Date(now-i*3600000).toISOString(),utm_content:'demo',utm_term:'not_set',...l}));
+      set(STORE_LEADS, demoLeads.concat(get(STORE_LEADS)));
+      const demoEvents = demoLeads.flatMap((l,i)=>[
+        {id:`evt_demo_pv_${now}_${i}`,event:'page_view',timestamp:new Date(now-i*3700000).toISOString(),session_id:l.session_id,path:'index.html',utm_source:l.utm_source,utm_medium:l.utm_medium,utm_campaign:l.utm_campaign,utm_content:'demo',utm_term:'not_set'},
+        {id:`evt_demo_line_${now}_${i}`,event:i===1?'consultation_cta_click':'line_cta_click',timestamp:new Date(now-i*3600000+120000).toISOString(),session_id:l.session_id,path:'index.html',utm_source:l.utm_source,utm_medium:l.utm_medium,utm_campaign:l.utm_campaign,utm_content:'demo',utm_term:'not_set'},
+        {id:`evt_demo_submit_${now}_${i}`,event:'form_submit',timestamp:l.created_at,session_id:l.session_id,path:'index.html',utm_source:l.utm_source,utm_medium:l.utm_medium,utm_campaign:l.utm_campaign,utm_content:'demo',utm_term:'not_set',lead_id:l.id,interest:l.interest}
+      ]);
+      set(STORE_EVENTS, demoEvents.concat(get(STORE_EVENTS))); render();
+    });
+    render();
+  </script>
+</body>
+</html>
