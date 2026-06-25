@@ -11,7 +11,10 @@
 - [ ] `dashboard.html` still reads localStorage leads and events.
 - [ ] Submit the same payload twice to Apps Script, confirm only one row is added, and confirm the second response returns `duplicate: true`.
 - [ ] Open Chrome console and inspect `window.dataLayer`.
+- [ ] Confirm `window.dataLayer` is not undefined after page load.
+- [ ] Confirm `page_view` appears in `window.dataLayer` after page load.
 - [ ] Confirm dataLayer events fire for page view, form start, form submit, LINE click, CTA click, FAQ expand, scroll depth, PDPA consent, and Google Sheets sync.
+- [ ] Confirm no `name`, `phone`, or `line_id` appears in `window.dataLayer`.
 - [ ] Confirm dataLayer events contain no PII such as name, phone, LINE ID, or email.
 - [ ] Confirm dataLayer events contain no sensitive health details such as symptoms, disease, medication, dosage, BMI, weight, or health condition details.
 - [ ] Confirm `form_submit` still saves locally and enters Google Sheet when the endpoint is connected.

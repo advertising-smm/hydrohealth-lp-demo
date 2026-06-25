@@ -1,3 +1,4 @@
+window.dataLayer = window.dataLayer || [];
 (function(){
   const STORE_EVENTS = 'hydrohealth_events_v1';
   const STORE_LEADS = 'hydrohealth_leads_v1';
